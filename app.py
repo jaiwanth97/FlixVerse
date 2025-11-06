@@ -38,7 +38,7 @@ st.markdown(
       html { scroll-behavior: smooth; }
       body { margin: 0; }
       [data-testid="stAppViewContainer"] > .main { padding-top: 64px !important; }
-      .block-container { padding-top: 0 !important; }
+      .block-container { padding-top: 50px !important; }
       [data-testid="stHeader"], footer, #MainMenu { display: none; }
       .container { padding: 0 24px; }
       h1, h2, h3, h4, h5, h6 { color: var(--text); letter-spacing: -0.02em; }
@@ -46,33 +46,125 @@ st.markdown(
       h2, h3 { font-weight: 800; }
 
       /* Navbar */
-      .navbar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; align-items: center; justify-content: flex-start; gap: 24px; padding: 12px 24px; background: linear-gradient(180deg, rgba(0,0,0,0.85), rgba(0,0,0,0)); width: 100%; margin-left: 0; margin-right: 0; margin-top: 0; }
+      .navbar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; align-items: center; justify-content: flex-start; gap: 24px; padding: 12px 24px; background: rgba(0,0,0,0.85); width: 100%; margin-left: 0; margin-right: 0; margin-top: 0; border-bottom: 2px solid var(--red); }
       .navbar .nav-left { display: flex; align-items: center; gap: 24px; }
       .navbar .brand { color: var(--red); font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; }
-      .navbar .links { display: flex; gap: 16px; color: var(--muted); font-weight: 600; }
-      .navbar .links a { color: var(--muted); text-decoration: none; cursor: pointer; }
-      .navbar .links a:hover { color: #fff; }
+      .navbar .links { display: flex; gap: 30px; color: var(--muted); font-weight: 600; align-items: center; }
+      .navbar .links a { 
+        color: var(--muted); 
+        text-decoration: none; 
+        cursor: pointer; 
+        padding: 8px 16px;
+        border-radius: 6px;
+        transition: all 0.3s ease;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        border: 1px solid transparent;
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .navbar .links a:hover { 
+        color: #fff; 
+        background: rgba(229, 9, 20, 0.2);
+        border-color: rgba(229, 9, 20, 0.4);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(229, 9, 20, 0.2);
+      }
+      .navbar .links a:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 4px rgba(229, 9, 20, 0.15);
+      }
       /* Right-side navbar elements removed for now */
 
       /* Cards */
-      .movie-card { background: transparent; border-radius: 12px; transition: transform .25s ease, box-shadow .25s ease; padding: 10px; width: 220px; display: flex; flex-direction: column; align-items: center; gap: 6px; min-height: 460px; }
-      .movie-card img { width: 150px; height: 225px; object-fit: cover; border-radius: 10px; display: block; margin: 0 auto; box-shadow: 0 12px 24px rgba(0,0,0,0.35); }
+      .movie-card { 
+        background: transparent; 
+        border-radius: 12px; 
+        transition: transform .25s ease, box-shadow .25s ease; 
+        padding: 10px; 
+        width: 220px; 
+        height: 500px; 
+        display: flex; 
+        flex-direction: column; 
+        align-items: center; 
+        gap: 6px; 
+        box-sizing: border-box;
+      }
+      .movie-card img { width: 150px; height: 225px; object-fit: cover; border-radius: 10px; display: block; margin: 0 auto; box-shadow: 0 12px 24px rgba(0,0,0,0.35); flex-shrink: 0; }
       .movie-card:hover { transform: scale(1.03); z-index: 2; }
-      .poster-title { font-weight: 800; color: #f5f5f5; margin: 8px 0 2px; font-size: 0.98rem; text-align: center; line-height: 1.3; min-height: calc(1.3em * 2); max-height: calc(1.3em * 2); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-      .poster-meta { color: var(--yellow); text-align: center; font-weight: 700; margin-bottom: 6px; min-height: 22px; }
-      .genre-row { display:flex; justify-content:center; gap:8px; margin:6px 0; flex-wrap: wrap; }
-      .genre-pill { border: 1px solid rgba(255,255,255,0.25); color: var(--muted); border-radius: 999px; padding: 4px 10px; font-size: 0.78em; font-weight: 700; letter-spacing: 0.2px; line-height: 1; }
-      .genre-stack { min-height: 80px; display: flex; flex-direction: column; justify-content: center; }
-      .card-spacer { flex: 1 1 auto; }
-      .btn-link { display: inline-block; text-decoration: none; width: 100%; }
+      .poster-title { 
+        font-weight: 800; 
+        color: #f5f5f5; 
+        margin: 8px 0 2px; 
+        font-size: 0.98rem; 
+        text-align: center; 
+        line-height: 1.3; 
+        height: calc(1.3em * 2); 
+        overflow: hidden; 
+        display: -webkit-box; 
+        -webkit-line-clamp: 2; 
+        -webkit-box-orient: vertical;
+        flex-shrink: 0;
+      }
+      .poster-meta { 
+        color: var(--yellow); 
+        text-align: center; 
+        font-weight: 700; 
+        margin-bottom: 6px; 
+        height: 22px; 
+        flex-shrink: 0;
+      }
+      .genre-row { 
+        display:flex; 
+        justify-content:center; 
+        gap:8px; 
+        margin: 2px 0; 
+        flex-wrap: wrap; 
+      }
+      .genre-pill { 
+        border: 1px solid rgba(255,255,255,0.25); 
+        color: var(--muted); 
+        border-radius: 999px; 
+        padding: 4px 10px; 
+        font-size: 0.78em; 
+        font-weight: 700; 
+        letter-spacing: 0.2px; 
+        line-height: 1; 
+      }
+      .genre-stack { 
+        height: 90px; 
+        max-height: 90px; 
+        display: flex; 
+        flex-direction: column; 
+        justify-content: flex-start; 
+        align-items: center;
+        overflow: hidden;
+        flex-shrink: 0;
+        width: 100%;
+      }
+      .card-spacer { 
+        flex: 1 1 auto; 
+        min-height: 0;
+      }
+      .btn-link { display: inline-block; text-decoration: none; width: 100%; flex-shrink: 0; }
       .movie-card a, .btn-link, .btn-link:link, .btn-link:visited, .btn-link:hover, .btn-link:active { text-decoration: none !important; border-bottom: none !important; }
-      .btn-primary { background: var(--red); color: #fff; border: none; border-radius: 6px; padding: 10px 12px; font-weight: 800; text-align:center; box-shadow: 0 6px 14px rgba(229,9,20,0.25); transition: background .2s ease; text-decoration: none !important; }
+      .btn-primary { background: var(--red); color: #fff; border: none; border-radius: 6px; padding: 10px 12px; font-weight: 800; text-align:center; box-shadow: 0 6px 14px rgba(229,9,20,0.25); transition: background .2s ease; text-decoration: none !important; width: 100%; }
       .btn-primary:hover { background: var(--red-dark); }
 
       /* Buttons */
       .stButton>button { background: var(--red); color: #fff; border: none; border-radius: 4px; padding: 10px 12px; font-weight: 800; transition: background .2s ease; box-shadow: 0 6px 14px rgba(229,9,20,0.25); }
       .stButton>button:hover { background: var(--red-dark); }
       .stButton>button:focus { outline: 2px solid rgba(229,9,20,0.5); }
+
+      /* Specific styling for the top movie search button */
+      #movie-search .stButton>button {
+        background: #d8242491 !important; /* your custom color */
+        color: #fff !important;
+        border: none !important;
+      }   
+      #movie-search .stButton>button:hover {
+        filter: brightness(1.05);
+      }
 
       /* Inputs */
       input, textarea { background: #0f0f0f !important; color: var(--text) !important; border: 1px solid rgba(255,255,255,0.15) !important; }
@@ -97,11 +189,13 @@ st.markdown(
     """
     <div class="navbar">
       <div class="nav-left">
-        <div class="brand">CineRecommender</div>
+        <div class="brand">FilmVerse</div>
         <div class="links">
-          <a href="?">Home</a>
-          <a href="?">Find your next movie</a>
-          <a href="?view=advanced-search">Advanced Search</a>
+          <a href="?" target="_self">Home</a>
+          <a href="?view=recommendations#top" target="_self">Find your next movie</a>
+          <a href="?view=surprise-me" target="_self">Surprise Me</a>
+          <a href="?view=top-rated" target="_self">Top Rated Movies</a>
+          <a href="?view=advanced-search" target="_self">Advanced Search</a>
         </div>
       </div>
     </div>
@@ -298,14 +392,196 @@ def render_advanced_search():
                 f"<div class='poster-meta'>⭐ {rating_display}</div>"
                 f"{genre_rows_html2}"
                 "<div class='card-spacer'></div>"
-                f"<a class='btn-link' href='?movie={encoded2}'><div class='btn-primary'>View Details</div></a>"
+                f"<a class='btn-link' href='?movie={encoded2}' target='_self'><div class='btn-primary'>View Details</div></a>"
                 "</div>"
             )
             st.markdown(card_html2, unsafe_allow_html=True)
 
+# Surprise Me renderer
+def render_surprise_me():
+    st.title("🎲 Surprise Me!")
+    st.markdown("Discover a random movie from our collection!")
+    
+    # Initialize session state for surprise movie
+    if 'surprise_movie' not in st.session_state:
+        st.session_state.surprise_movie = None
+        st.session_state.surprise_recs = None
+    
+    # Get a random movie
+    if st.button("🎲 Get Surprised!", use_container_width=False):
+        random_movie = movies.sample(n=1).iloc[0]
+        random_title = random_movie['title']
+        
+        # Get recommendations based on the random movie
+        recs = recommend(random_title, movies, sim_matrix)
+        
+        # Remove the random movie from recommendations
+        if not recs.empty:
+            recs = recs[recs['title'] != random_title]
+        
+        # Store in session state
+        st.session_state.surprise_movie = random_movie
+        st.session_state.surprise_recs = recs
+    
+    # Display the surprise movie if available
+    if st.session_state.surprise_movie is not None:
+        random_movie = st.session_state.surprise_movie
+        random_title = random_movie['title']
+        recs = st.session_state.surprise_recs
+        
+        st.subheader(f"Your Surprise Movie: {random_title.split('(')[0].strip()}")
+        
+        # Display the random movie
+        details = get_cached_movie_details(random_title)
+        poster = details['poster'] or "https://via.placeholder.com/200x300?text=No+Poster"
+        year = details['year'] or "N/A"
+        rating = details['rating'] or "N/A"
+        title_clean = random_title.split('(')[0].strip()
+        genres = [g.strip() for g in random_movie['genres'].split('|') if g.strip()] if isinstance(random_movie.get('genres'), str) else []
+
+        genre_rows_html = "<div class='genre-stack'>"
+        for i in range(0, len(genres), 2):
+            chunk = genres[i:i+2]
+            row_html = "<div class='genre-row'>"
+            for g in chunk:
+                color = GENRE_COLORS.get(g, "#555")
+                row_html += (
+                    f"<span class='genre-pill' style='border-color:{color}; color:{color};'>"
+                    f"{g}</span>"
+                )
+            row_html += "</div>"
+            genre_rows_html += row_html
+        genre_rows_html += "</div>"
+
+        encoded = urllib.parse.quote(random_title)
+        card_html = (
+            "<div class='movie-card'>"
+            f"<img src='{poster}' alt='poster'/>"
+            f"<div class='poster-title'>{title_clean} ({year})</div>"
+            f"<div class='poster-meta'>⭐ {rating}</div>"
+            f"{genre_rows_html}"
+            "<div class='card-spacer'></div>"
+            f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
+            "</div>"
+        )
+        st.markdown(card_html, unsafe_allow_html=True)
+        
+        # Show similar movies
+        if recs is not None and not recs.empty:
+            st.subheader("Similar Movies You Might Like:")
+            num_cols = 5
+            cols = st.columns(num_cols)
+            
+            for idx, (_, row) in enumerate(recs.iterrows()):
+                col_idx = idx % num_cols
+                with cols[col_idx]:
+                    details = get_cached_movie_details(row['title'])
+                    poster = details['poster'] or "https://via.placeholder.com/200x300?text=No+Poster"
+                    year = details['year'] or "N/A"
+                    rating = details['rating'] or "N/A"
+                    original_title = row['title']
+                    title_clean = original_title.split('(')[0].strip()
+                    genres = [g.strip() for g in row['genres'].split('|') if g.strip()]
+
+                    genre_rows_html = "<div class='genre-stack'>"
+                    for i in range(0, len(genres), 2):
+                        chunk = genres[i:i+2]
+                        row_html = "<div class='genre-row'>"
+                        for g in chunk:
+                            color = GENRE_COLORS.get(g, "#555")
+                            row_html += (
+                                f"<span class='genre-pill' style='border-color:{color}; color:{color};'>"
+                                f"{g}</span>"
+                            )
+                        row_html += "</div>"
+                        genre_rows_html += row_html
+                    genre_rows_html += "</div>"
+
+                    encoded = urllib.parse.quote(original_title)
+                    card_html = (
+                        "<div class='movie-card'>"
+                        f"<img src='{poster}' alt='poster'/>"
+                        f"<div class='poster-title'>{title_clean} ({year})</div>"
+                        f"<div class='poster-meta'>⭐ {rating}</div>"
+                        f"{genre_rows_html}"
+                        "<div class='card-spacer'></div>"
+                        f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
+                        "</div>"
+                    )
+                    st.markdown(card_html, unsafe_allow_html=True)
+
+# Top Rated Movies renderer
+def render_top_rated():
+    st.title("⭐ Top Rated Movies")
+    st.markdown("Discover the highest-rated movies in our collection!")
+    
+    # Determine rating column
+    rating_col = 'rating' if 'rating' in movies.columns else ('vote_average' if 'vote_average' in movies.columns else None)
+    
+    if rating_col:
+        # Get top rated movies (sorted by rating, then by vote count if available)
+        top_movies = movies.copy()
+        top_movies['rating_num'] = pd.to_numeric(top_movies[rating_col], errors='coerce').fillna(0)
+        
+        # Sort by rating (descending) and limit to top 50
+        top_movies = top_movies.sort_values('rating_num', ascending=False).head(50)
+        
+        st.subheader(f"Top {len(top_movies)} Highest-Rated Movies")
+        
+        # Create consistent grid layout - 5 columns
+        num_cols = 5
+        cols = st.columns(num_cols)
+        
+        for idx, (_, row) in enumerate(top_movies.iterrows()):
+            col_idx = idx % num_cols
+            with cols[col_idx]:
+                title_val = str(row.get('title', 'Unknown'))
+                details = get_cached_movie_details(title_val)
+                poster = (details.get('poster') if details else None) or "https://via.placeholder.com/200x300?text=No+Poster"
+                year_val = (details.get('year') if details else None) or row.get('year', 'N/A')
+                rating_display = (details.get('rating') if details else None) or row.get(rating_col, 'N/A')
+
+                title_clean = title_val.split('(')[0].strip()
+                genres = []
+                if isinstance(row.get('genres'), str):
+                    genres = [g.strip() for g in row['genres'].split('|') if g.strip()]
+
+                genre_rows_html = "<div class='genre-stack'>"
+                for i in range(0, len(genres), 2):
+                    chunk = genres[i:i+2]
+                    row_html = "<div class='genre-row'>"
+                    for g in chunk:
+                        color = GENRE_COLORS.get(g, "#555")
+                        row_html += (
+                            f"<span class='genre-pill' style='border-color:{color}; color:{color};'>"
+                            f"{g}</span>"
+                        )
+                    row_html += "</div>"
+                    genre_rows_html += row_html
+                genre_rows_html += "</div>"
+
+                encoded = urllib.parse.quote(title_val)
+                card_html = (
+                    "<div class='movie-card'>"
+                    f"<img src='{poster}' alt='poster'/>"
+                    f"<div class='poster-title'>{title_clean} ({year_val})</div>"
+                    f"<div class='poster-meta'>⭐ {rating_display}</div>"
+                    f"{genre_rows_html}"
+                    "<div class='card-spacer'></div>"
+                    f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
+                    "</div>"
+                )
+                st.markdown(card_html, unsafe_allow_html=True)
+    else:
+        st.error("❌ Rating information not available in the dataset.")
+
 # If movie is selected via query params, show detailed view
 if current_view == "advanced-search":
     render_advanced_search()
+elif current_view == "surprise-me":
+    render_surprise_me()
+elif current_view == "top-rated":
+    render_top_rated()
 elif selected_movie_title:
     st.title(f"🎬 {selected_movie_title}")
     
@@ -428,218 +704,201 @@ elif selected_movie_title:
 else:
     # Main recommendation page
     st.markdown('<div id="top"></div>', unsafe_allow_html=True)
-    st.title("🎬 AI-Powered Movie Recommendation System")
     
-    movie_name = st.text_input("Enter a movie name (e.g., Inception, Avatar, Titanic):")
+    # Show title only on "Find your next movie" page
+    if current_view == "recommendations":
+        st.title("🎬 AI-Powered Movie Recommendation System")
+    
+    # Search input with button on the right (aligned)
+    submitted_search = False
+    st.markdown("<div id=\"movie-search\">", unsafe_allow_html=True)
+    if current_view == "recommendations":
+        st.markdown("Enter a movie name (e.g., Inception, Avatar, Titanic):")
+    else:
+        st.markdown("Enter a movie name :")
+    with st.form("movie_search_form"):
+        left_col, right_col = st.columns([12, 2])
+        with left_col:
+            movie_name = st.text_input(
+                "movie_input",
+                placeholder="Type a movie title...",
+                label_visibility="collapsed",
+            )
+        with right_col:
+            submitted_search = st.form_submit_button("Search", use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    if movie_name:
-        recs = recommend(movie_name, movies, sim_matrix)
-        if recs.empty:
+    if submitted_search and movie_name:
+        # Search for movies matching the search term
+        search_term = movie_name.lower().strip()
+        
+        # First try exact match (case-insensitive)
+        exact_match = movies[movies['title'].astype(str).str.lower() == search_term]
+        
+        # If no exact match, try title starts with search term
+        if exact_match.empty:
+            exact_match = movies[movies['title'].astype(str).str.lower().str.startswith(search_term)]
+        
+        # If still no match, try contains search term
+        if exact_match.empty:
+            exact_match = movies[movies['title'].astype(str).str.lower().str.contains(search_term, na=False)]
+        
+        if exact_match.empty:
             st.error("❌ Movie not found. Try another title.")
         else:
-            st.subheader("Recommended Movies:")
+            # Get the first matching movie title
+            searched_movie_title = exact_match.iloc[0]['title']
             
-            # Create consistent grid layout - 5 columns with equal spacing
-            num_cols = 5
-            cols = st.columns(num_cols)
+            # Only get recommendations if we're on the "Find your next movie" page
+            show_recommendations = (current_view == "recommendations")
+            recs = pd.DataFrame()  # Initialize empty dataframe
             
-            for idx, (_, row) in enumerate(recs.iterrows()):
-                col_idx = idx % num_cols
-                with cols[col_idx]:
-                    # Use cached details to avoid unnecessary fetching - no delay needed since cached
-                    details = get_cached_movie_details(row['title'])
-                    poster = details['poster'] or "https://via.placeholder.com/200x300?text=No+Poster"
-                    year = details['year'] or "N/A"
-                    rating = details['rating'] or "N/A"
+            if show_recommendations:
+                # Get recommendations based on the searched movie
+                recs = recommend(searched_movie_title, movies, sim_matrix)
+                
+                # Remove the searched movie from recommendations to avoid duplication
+                if not recs.empty:
+                    recs = recs[recs['title'] != searched_movie_title]
+            else:
+                # On home page, show the searched movie
+                st.subheader(f"Movie: '{searched_movie_title.split('(')[0].strip()}'")
+                
+                # Display the searched movie
+                searched_row = exact_match.iloc[0]
+                details = get_cached_movie_details(searched_row['title'])
+                poster = details['poster'] or "https://via.placeholder.com/200x300?text=No+Poster"
+                year = details['year'] or "N/A"
+                rating = details['rating'] or "N/A"
+                original_title = searched_row['title']
+                title_clean = original_title.split('(')[0].strip()
+                genres = [g.strip() for g in searched_row['genres'].split('|') if g.strip()]
 
-                    # Use original title from dataset (includes year for better matching)
-                    original_title = row['title']
-                    title_clean = original_title.split('(')[0].strip()
+                genre_rows_html = "<div class='genre-stack'>"
+                for i in range(0, len(genres), 2):
+                    chunk = genres[i:i+2]
+                    row_html = "<div class='genre-row'>"
+                    for g in chunk:
+                        color = GENRE_COLORS.get(g, "#555")
+                        row_html += (
+                            f"<span class='genre-pill' style='border-color:{color}; color:{color};'>"
+                            f"{g}</span>"
+                        )
+                    row_html += "</div>"
+                    genre_rows_html += row_html
+                genre_rows_html += "</div>"
+
+                encoded = urllib.parse.quote(original_title)
+                card_html = (
+                    "<div class='movie-card'>"
+                    f"<img src='{poster}' alt='poster'/>"
+                    f"<div class='poster-title'>{title_clean} ({year})</div>"
+                    f"<div class='poster-meta'>⭐ {rating}</div>"
+                    f"{genre_rows_html}"
+                    "<div class='card-spacer'></div>"
+                    f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
+                    "</div>"
+                )
+                st.markdown(card_html, unsafe_allow_html=True)
+            
+            # Display recommendations only on "Find your next movie" page
+            if show_recommendations and not recs.empty:
+                st.subheader("Recommended Movies:")
+                
+                # Create consistent grid layout - 5 columns with equal spacing
+                num_cols = 5
+                cols = st.columns(num_cols)
+                
+                for idx, (_, row) in enumerate(recs.iterrows()):
+                    col_idx = idx % num_cols
+                    with cols[col_idx]:
+                        # Use cached details to avoid unnecessary fetching - no delay needed since cached
+                        details = get_cached_movie_details(row['title'])
+                        poster = details['poster'] or "https://via.placeholder.com/200x300?text=No+Poster"
+                        year = details['year'] or "N/A"
+                        rating = details['rating'] or "N/A"
+
+                        # Use original title from dataset (includes year for better matching)
+                        original_title = row['title']
+                        title_clean = original_title.split('(')[0].strip()
+                        genres = [g.strip() for g in row['genres'].split('|') if g.strip()]
+
+                        # Build genres into rows of max 2 per line (outlined, subtle pills)
+                        genre_rows_html = "<div class='genre-stack'>"
+                        for i in range(0, len(genres), 2):
+                            chunk = genres[i:i+2]
+                            row_html = "<div class='genre-row'>"
+                            for g in chunk:
+                                color = GENRE_COLORS.get(g, "#555")
+                                row_html += (
+                                    f"<span class='genre-pill' style='border-color:{color}; color:{color};'>"
+                                    f"{g}</span>"
+                                )
+                            row_html += "</div>"
+                            genre_rows_html += row_html
+                        genre_rows_html += "</div>"
+
+                        # Display card with built-in button; use query string navigation for details
+                        encoded = urllib.parse.quote(original_title)
+                        card_html = (
+                            "<div class='movie-card'>"
+                            f"<img src='{poster}' alt='poster'/>"
+                            f"<div class='poster-title'>{title_clean} ({year})</div>"
+                            f"<div class='poster-meta'>⭐ {rating}</div>"
+                            f"{genre_rows_html}"
+                            "<div class='card-spacer'></div>"
+                            f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
+                            "</div>"
+                        )
+
+                        st.markdown(card_html, unsafe_allow_html=True)
+
+    else:
+        # Show all available movies
+        st.subheader("All Movies")
+
+        # Create consistent grid layout - 5 columns
+        num_cols = 5
+        cols = st.columns(num_cols)
+
+        for idx, (_, row) in enumerate(movies.iterrows()):
+            col_idx = idx % num_cols
+            with cols[col_idx]:
+                title_val = str(row.get('title', 'Unknown'))
+                details = get_cached_movie_details(title_val)
+                poster = (details.get('poster') if details else None) or "https://via.placeholder.com/200x300?text=No+Poster"
+                year_val = (details.get('year') if details else None) or row.get('year', 'N/A')
+                rating_display = (details.get('rating') if details else None) or row.get('rating') or row.get('vote_average', 'N/A')
+
+                title_clean = title_val.split('(')[0].strip()
+                genres = []
+                if isinstance(row.get('genres'), str):
                     genres = [g.strip() for g in row['genres'].split('|') if g.strip()]
 
-                    # Build genres into rows of max 2 per line (outlined, subtle pills)
-                    genre_rows_html = "<div class='genre-stack'>"
-                    for i in range(0, len(genres), 2):
-                        chunk = genres[i:i+2]
-                        row_html = "<div class='genre-row'>"
-                        for g in chunk:
-                            color = GENRE_COLORS.get(g, "#555")
-                            row_html += (
-                                f"<span class='genre-pill' style='border-color:{color}; color:{color};'>"
-                                f"{g}</span>"
-                            )
-                        row_html += "</div>"
-                        genre_rows_html += row_html
-                    genre_rows_html += "</div>"
+                genre_rows_html = "<div class='genre-stack'>"
+                for i in range(0, len(genres), 2):
+                    chunk = genres[i:i+2]
+                    row_html = "<div class='genre-row'>"
+                    for g in chunk:
+                        color = GENRE_COLORS.get(g, "#555")
+                        row_html += (
+                            f"<span class='genre-pill' style='border-color:{color}; color:{color};'>"
+                            f"{g}</span>"
+                        )
+                    row_html += "</div>"
+                    genre_rows_html += row_html
+                genre_rows_html += "</div>"
 
-                    # Display card with built-in button; use query string navigation for details
-                    encoded = urllib.parse.quote(original_title)
-                    card_html = (
-                        "<div class='movie-card'>"
-                        f"<img src='{poster}' alt='poster'/>"
-                        f"<div class='poster-title'>{title_clean} ({year})</div>"
-                        f"<div class='poster-meta'>⭐ {rating}</div>"
-                        f"{genre_rows_html}"
-                        "<div class='card-spacer'></div>"
-                        f"<a class='btn-link' href='?movie={encoded}'><div class='btn-primary'>View Details</div></a>"
-                        "</div>"
-                    )
+                encoded = urllib.parse.quote(title_val)
+                card_html = (
+                    "<div class='movie-card'>"
+                    f"<img src='{poster}' alt='poster'/>"
+                    f"<div class='poster-title'>{title_clean} ({year_val})</div>"
+                    f"<div class='poster-meta'>⭐ {rating_display}</div>"
+                    f"{genre_rows_html}"
+                    "<div class='card-spacer'></div>"
+                    f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
+                    "</div>"
+                )
 
-                    st.markdown(card_html, unsafe_allow_html=True)
-
-            # Advanced Search Section
-            st.markdown('<div id="advanced-search"></div>', unsafe_allow_html=True)
-            st.markdown("<hr />", unsafe_allow_html=True)
-            st.subheader("Advanced Search")
-
-            # Helper utilities
-            def get_all_genres(df):
-                if 'genres' not in df.columns:
-                    return []
-                all_genres = set()
-                for g in df['genres'].dropna().astype(str):
-                    for part in g.split('|'):
-                        part = part.strip()
-                        if part:
-                            all_genres.add(part)
-                return sorted(list(all_genres))
-
-            def find_movie_index_by_title(df, title_query):
-                if not title_query:
-                    return None
-                title_query_lower = title_query.lower().strip()
-                exact = df.index[df['title'].astype(str).str.lower() == title_query_lower]
-                if len(exact) > 0:
-                    return int(exact[0])
-                sw = df.index[df['title'].astype(str).str.lower().str.startswith(title_query_lower)]
-                if len(sw) > 0:
-                    return int(sw[0])
-                contains = df.index[df['title'].astype(str).str.lower().str.contains(title_query_lower, na=False)]
-                if len(contains) > 0:
-                    return int(contains[0])
-                return None
-
-            def normalize_series(s):
-                s = pd.to_numeric(s, errors='coerce').fillna(0)
-                if s.max() == s.min():
-                    return pd.Series([0.0]*len(s), index=s.index)
-                return (s - s.min()) / (s.max() - s.min())
-
-            with st.form("adv_search_form"):
-                c1, c2, c3 = st.columns([1,1,1])
-                with c1:
-                    selected_genres = st.multiselect("Genre(s)", options=get_all_genres(movies))
-                    rating_min = st.slider("Min rating", 0.0, 10.0, 6.0, 0.1)
-                    language = st.text_input("Language (e.g., en, hi, fr)")
-                with c2:
-                    min_year = int(pd.to_numeric(movies.get('year', pd.Series([1990])), errors='coerce').fillna(1990).min())
-                    max_year = int(pd.to_numeric(movies.get('year', pd.Series([2024])), errors='coerce').fillna(2024).max())
-                    year_range = st.slider("Release year range", min_year, max_year, (max(min_year, max_year-20), max_year))
-                    actor = st.text_input("Actor contains")
-                with c3:
-                    director = st.text_input("Director contains")
-                    keywords = st.text_input("Keywords (mood/theme/plot)")
-                    similar_to = st.text_input("Similar to (movie)")
-
-                submitted = st.form_submit_button("Search")
-
-            if submitted:
-                df = movies.copy()
-                # Filter by genres
-                if selected_genres and 'genres' in df.columns:
-                    mask = df['genres'].fillna('').apply(lambda x: all(g in x for g in selected_genres))
-                    df = df[mask]
-
-                # Filter by year
-                if 'year' in df.columns:
-                    df = df[pd.to_numeric(df['year'], errors='coerce').fillna(0).between(year_range[0], year_range[1])]
-
-                # Filter by rating
-                rating_col = 'rating' if 'rating' in df.columns else ('vote_average' if 'vote_average' in df.columns else None)
-                if rating_col:
-                    df = df[pd.to_numeric(df[rating_col], errors='coerce').fillna(0) >= rating_min]
-
-                # Filter by language
-                lang_col = 'language' if 'language' in df.columns else ('original_language' if 'original_language' in df.columns else None)
-                if language and lang_col:
-                    df = df[df[lang_col].astype(str).str.contains(language.strip(), case=False, na=False)]
-
-                # Actor / Director keyword filters (if present)
-                if actor and 'cast' in df.columns:
-                    df = df[df['cast'].astype(str).str.contains(actor.strip(), case=False, na=False)]
-                if director and 'director' in df.columns:
-                    df = df[df['director'].astype(str).str.contains(director.strip(), case=False, na=False)]
-
-                # Keywords search across available text columns
-                if keywords:
-                    kw = keywords.strip()
-                    cols = [c for c in ['title','overview','tagline','genres'] if c in df.columns]
-                    if cols:
-                        kw_mask = False
-                        for c in cols:
-                            kw_mask = kw_mask | df[c].astype(str).str.contains(kw, case=False, na=False)
-                        df = df[kw_mask]
-
-                # Scoring: similarity + rating + recency
-                score = pd.Series(0.0, index=df.index)
-                if similar_to:
-                    idx = find_movie_index_by_title(movies, similar_to)
-                    if idx is not None:
-                        sim_vec = pd.Series(sim_matrix[idx], index=movies.index)
-                        score = score.add(normalize_series(sim_vec.reindex(df.index).fillna(0)) * 0.55, fill_value=0)
-
-                if 'rating' in df.columns or 'vote_average' in df.columns:
-                    rcol = 'rating' if 'rating' in df.columns else 'vote_average'
-                    score = score.add(normalize_series(pd.to_numeric(df[rcol], errors='coerce').fillna(0)) * 0.30, fill_value=0)
-
-                if 'year' in df.columns:
-                    score = score.add(normalize_series(pd.to_numeric(df['year'], errors='coerce').fillna(0)) * 0.15, fill_value=0)
-
-                top_idx = score.sort_values(ascending=False).head(10).index
-                df = df.loc[top_idx]
-
-                st.markdown("### Results")
-                if df.empty:
-                    st.info("No matches found. Try relaxing your filters.")
-                else:
-                    num_cols = 5
-                    cols2 = st.columns(num_cols)
-                    for jdx, (_, r) in enumerate(df.iterrows()):
-                        cidx = jdx % num_cols
-                        with cols2[cidx]:
-                            title_value = str(r.get('title', 'Unknown'))
-                            details = get_cached_movie_details(title_value)
-                            poster = (details.get('poster') if details else None) or "https://via.placeholder.com/200x300?text=No+Poster"
-                            year_val = r.get('year') or (details.get('year') if details else 'N/A')
-                            rcol = 'rating' if 'rating' in r.index else ('vote_average' if 'vote_average' in r.index else None)
-                            rating_display = r.get(rcol) if rcol else (details.get('rating') if details else 'N/A')
-                            genres2 = []
-                            if 'genres' in r and isinstance(r['genres'], str):
-                                genres2 = [g.strip() for g in r['genres'].split('|') if g.strip()]
-
-                            genre_rows_html2 = "<div class='genre-stack'>"
-                            for i2 in range(0, len(genres2), 2):
-                                chunk2 = genres2[i2:i2+2]
-                                row_html2 = "<div class='genre-row'>"
-                                for g2 in chunk2:
-                                    color2 = GENRE_COLORS.get(g2, "#555")
-                                    row_html2 += (
-                                        f"<span class='genre-pill' style='border-color:{color2}; color:{color2};'>"
-                                        f"{g2}</span>"
-                                    )
-                                row_html2 += "</div>"
-                                genre_rows_html2 += row_html2
-                            genre_rows_html2 += "</div>"
-
-                            encoded2 = urllib.parse.quote(title_value)
-                            card_html2 = (
-                                "<div class='movie-card'>"
-                                f"<img src='{poster}' alt='poster'/>"
-                                f"<div class='poster-title'>{title_value} ({year_val})</div>"
-                                f"<div class='poster-meta'>⭐ {rating_display}</div>"
-                                f"{genre_rows_html2}"
-                                "<div class='card-spacer'></div>"
-                                f"<a class='btn-link' href='?movie={encoded2}'><div class='btn-primary'>View Details</div></a>"
-                                "</div>"
-                            )
-                            st.markdown(card_html2, unsafe_allow_html=True)
+                st.markdown(card_html, unsafe_allow_html=True)
