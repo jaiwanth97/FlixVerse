@@ -1,5 +1,8 @@
 import streamlit as st
 import pandas as pd
+import numpy as np            
+import requests 
+import uuid
 import time
 import urllib.parse
 from src.recommender import load_data, train_model, recommend
@@ -219,9 +222,40 @@ if query_params.get("movie"):
         selected_movie_title = urllib.parse.unquote(selected_movie_title)
 
 # Determine current view (home vs advanced search)
+# Determine current view
 current_view = query_params.get("view")
 if isinstance(current_view, list):
     current_view = current_view[0] if current_view else None
+
+# ======================================
+# Global search form (hide in recommendations)
+# ======================================
+if "current_view" not in locals():
+    current_view = None
+
+if current_view not in ["recommendations"]:
+    st.markdown("<div class='global-search'>", unsafe_allow_html=True)
+    with st.form(f"global_search_form_{current_view or 'home'}"):
+        c1, c2 = st.columns([12, 2])
+        with c1:
+            global_movie_query = st.text_input(
+                "movie_input_global",
+                placeholder="Search any movie...",
+                label_visibility="collapsed",
+            )
+        with c2:
+            global_search_submit = st.form_submit_button("Search", use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # ✅ Search logic must stay *inside* this block
+    if 'search_history' not in st.session_state:
+        st.session_state['search_history'] = []
+
+    if global_search_submit and global_movie_query:
+        st.session_state['search_history'].append(global_movie_query.strip())
+        st.query_params["movie"] = urllib.parse.quote(global_movie_query.strip())
+        st.rerun()
+
 
 @st.cache_data
 def prepare():
@@ -697,44 +731,191 @@ def render_top_rated():
         st.error("❌ Rating information not available in the dataset.")
 
 # If movie is selected via query params, show detailed view
-if current_view == "advanced-search":
+# If movie is selected via query params, show detailed view
+if current_view in [None, "home"]:
+    # Home view (default)
+    st.markdown('<div id="top"></div>', unsafe_allow_html=True)
+
+    st.title('🎬 FlixVerse Homepage')
+
+    # 1️⃣ Suggested For You Section
+    st.subheader("✨ Suggested for You")
+    if 'search_history' not in st.session_state:
+        st.session_state['search_history'] = []
+
+
+    suggested_df = pd.DataFrame()
+    for title in st.session_state['search_history'][-5:]:
+        try:
+            recs = recommend(title, movies, sim_matrix)
+            suggested_df = pd.concat([suggested_df, recs], ignore_index=True)
+        except:
+            pass
+    # Remove duplicate and blank entries cleanly
+    # Clean up and remove duplicates safely
+    if not suggested_df.empty and 'title' in suggested_df.columns:
+        suggested_df['title'] = suggested_df['title'].astype(str).str.strip()
+        suggested_df = (
+            suggested_df.drop_duplicates(subset='title', keep='first')
+            .reset_index(drop=True)
+        )
+        suggested_df = suggested_df[suggested_df['title'] != ""]
+    else:
+        suggested_df = pd.DataFrame(columns=['title'])
+
+    if not suggested_df.empty:
+        num_cols = 5
+        cols = st.columns(num_cols)
+        for idx, (_, row) in enumerate(suggested_df.head(10).iterrows()):
+            col_idx = idx % num_cols
+            with cols[col_idx]:
+                try:
+                    details = get_cached_movie_details(row['title'])
+                    poster = details['poster'] or "https://via.placeholder.com/200x300?text=No+Poster"
+                    year = details['year'] or "N/A"
+                    rating = details['rating'] or "N/A"
+                    title_clean = row['title'].split('(')[0].strip()
+                    encoded = urllib.parse.quote(row['title'])
+                    card_html = (
+                        "<div class='movie-card'>"
+                        f"<img src='{poster}' alt='poster'/>"
+                        f"<div class='poster-title'>{title_clean} ({year})</div>"
+                        f"<div class='poster-meta'>⭐ {rating}</div>"
+                        "<div class='card-spacer'></div>"
+                        f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
+                        "</div>"
+                    )
+                    st.markdown(card_html, unsafe_allow_html=True)
+                except:
+                    pass
+    else:
+        st.info('🔍 Search for some movies to get personalized suggestions!')
+
+    # 2️⃣ Top Rated Movies Section
+    st.subheader("⭐ Top Rated Movies")
+    rating_col = None
+    if 'avg_rating' in movies.columns:
+        rating_col = 'avg_rating'
+    elif 'rating' in movies.columns:
+        rating_col = 'rating'
+    elif 'vote_average' in movies.columns:
+        rating_col = 'vote_average'
+
+    if rating_col:
+        top_movies = movies.copy()
+        top_movies['rating_num'] = pd.to_numeric(top_movies[rating_col], errors='coerce').fillna(0)
+        top_movies = top_movies[top_movies['rating_num'] > 0]
+        top_movies = top_movies.sort_values('rating_num', ascending=False).head(10)
+
+        num_cols = 5
+        cols = st.columns(num_cols)
+        for idx, (_, row) in enumerate(top_movies.iterrows()):
+            col_idx = idx % num_cols
+            with cols[col_idx]:
+                try:
+                    details = get_cached_movie_details(row['title'])
+                    poster = details['poster'] or "https://via.placeholder.com/200x300?text=No+Poster"
+                    year = details['year'] or "N/A"
+                    rating = details['rating'] or "N/A"
+                    title_clean = row['title'].split('(')[0].strip()
+                    encoded = urllib.parse.quote(row['title'])
+                    card_html = (
+                        "<div class='movie-card'>"
+                        f"<img src='{poster}' alt='poster'/>"
+                        f"<div class='poster-title'>{title_clean} ({year})</div>"
+                        f"<div class='poster-meta'>⭐ {rating}</div>"
+                        "<div class='card-spacer'></div>"
+                        f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
+                        "</div>"
+                    )
+                    st.markdown(card_html, unsafe_allow_html=True)
+                except:
+                    pass
+    st.markdown("---")
+
+elif current_view == "advanced-search":
     render_advanced_search()
+
 elif current_view == "surprise-me":
     render_surprise_me()
+
 elif current_view == "top-rated":
     render_top_rated()
+
+elif current_view == "recommendations":
+    # Focused recommendations view
+    st.title("🎬 Find Your Next Movie")
+    st.markdown("Search for a movie to get AI-based recommendations.")
+
+    # Reuse the global search logic
+    with st.form("recommendation_search_form"):
+        c1, c2 = st.columns([12, 2])
+        with c1:
+            movie_input = st.text_input("movie_input", placeholder="Type a movie title...", label_visibility="collapsed")
+        with c2:
+            movie_submit = st.form_submit_button("Search", use_container_width=True)
+
+    if movie_submit and movie_input:
+        movie_name = movie_input.lower().strip()
+        exact_match = movies[movies['title'].astype(str).str.lower().str.contains(movie_name, na=False)]
+        if exact_match.empty:
+            st.error("❌ Movie not found. Try another title.")
+        else:
+            searched_movie_title = exact_match.iloc[0]['title']
+            recs = recommend(searched_movie_title, movies, sim_matrix)
+            if not recs.empty:
+                recs = recs[recs['title'] != searched_movie_title]
+                st.subheader(f"Recommended movies based on **{searched_movie_title.split('(')[0].strip()}**:")
+                num_cols = 5
+                cols = st.columns(num_cols)
+                for idx, (_, row) in enumerate(recs.iterrows()):
+                    col_idx = idx % num_cols
+                    with cols[col_idx]:
+                        details = get_cached_movie_details(row['title'])
+                        poster = details['poster'] or "https://via.placeholder.com/200x300?text=No+Poster"
+                        year = details['year'] or "N/A"
+                        rating = details['rating'] or "N/A"
+                        title_clean = row['title'].split('(')[0].strip()
+                        encoded = urllib.parse.quote(row['title'])
+                        card_html = (
+                            "<div class='movie-card'>"
+                            f"<img src='{poster}' alt='poster'/>"
+                            f"<div class='poster-title'>{title_clean} ({year})</div>"
+                            f"<div class='poster-meta'>⭐ {rating}</div>"
+                            "<div class='card-spacer'></div>"
+                            f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
+                            "</div>"
+                        )
+                        st.markdown(card_html, unsafe_allow_html=True)
+            else:
+                st.info("No similar movies found for this selection.")
+
 elif selected_movie_title:
     st.title(f"🎬 {selected_movie_title}")
-    
+
     # Back button
     if st.button("← Back to Recommendations", key="back_button_1"):
         st.query_params.clear()
         st.rerun()
-    
+
     # Load full movie details
     full_details = get_cached_full_movie_details(selected_movie_title)
-    
-    # If no details found or wrong movie, show error
+
     if not full_details:
         st.error(f"❌ Could not find movie details for: {selected_movie_title}")
-        st.info("This might be due to:")
-        st.write("- The movie is not available in TMDB")
-        st.write("- The title doesn't match any results")
-        st.write("- There was an error fetching the data")
+        st.info("This might be due to missing TMDB data or a wrong title.")
         if st.button("← Back to Recommendations", key="back_button_2"):
             st.query_params.clear()
             st.rerun()
-    elif full_details:
+    else:
         backdrop = full_details.get('backdrop') or full_details.get('poster') or ''
-        
-        # Hero section with backdrop
         if backdrop:
             st.markdown(
                 f"""
-                <div class=\"hero\" style=\"background-image:url('{backdrop}'); background-size:cover; background-position:center;\">
-                  <div class=\"hero-content\">
-                    <div class=\"hero-title\">{full_details.get('title', 'N/A')}</div>
-                    <div class=\"hero-meta\">
+                <div class="hero" style="background-image:url('{backdrop}'); background-size:cover; background-position:center;">
+                  <div class="hero-content">
+                    <div class="hero-title">{full_details.get('title', 'N/A')}</div>
+                    <div class="hero-meta">
                       <span>⭐ <strong>{full_details.get('rating', 0):.1f}</strong></span>
                       <span>•</span>
                       <span>{full_details.get('year', 'N/A')}</span>
@@ -746,46 +927,36 @@ elif selected_movie_title:
                 """,
                 unsafe_allow_html=True,
             )
-        
-        # Main content
         col1, col2 = st.columns([1, 2], gap="large")
-        
+
         with col1:
             if full_details.get('poster'):
                 st.image(full_details.get('poster'), use_container_width=True)
-        
+
         with col2:
             if full_details.get('tagline'):
                 st.markdown(f"### *{full_details.get('tagline')}*")
                 st.markdown("<hr />", unsafe_allow_html=True)
-            
             if full_details.get('overview'):
                 st.markdown("### 📖 Overview")
                 st.write(full_details.get('overview'))
-            
             if full_details.get('genres'):
                 st.markdown("### 🎭 Genres")
                 genre_html = "<div style='display:flex; flex-wrap:wrap; gap:10px; margin-bottom: 20px;'>"
                 for genre in full_details.get('genres', []):
                     color = GENRE_COLORS.get(genre, "#555")
-                    genre_html += (
-                        f"<span class='genre-pill' style='border-color:{color}; color:{color};'>"
-                        f"{genre}</span>"
-                    )
+                    genre_html += f"<span class='genre-pill' style='border-color:{color}; color:{color};'>{genre}</span>"
                 genre_html += "</div>"
                 st.markdown(genre_html, unsafe_allow_html=True)
-            
             details_cols = st.columns(2)
             with details_cols[0]:
                 if full_details.get('director'):
                     st.markdown("### 🎬 Director")
                     st.write(f"**{full_details.get('director')}**")
-            
             with details_cols[1]:
                 if full_details.get('production_companies'):
                     st.markdown("### 🏢 Production")
                     st.write("**" + ", ".join(full_details.get('production_companies', [])) + "**")
-            
             if full_details.get('cast'):
                 st.markdown("### 👥 Top Cast")
                 cast_list = full_details.get('cast', [])
@@ -797,11 +968,9 @@ elif selected_movie_title:
                             st.image(actor['profile_path'], width=120)
                         st.write(f"**{actor.get('name', 'N/A')}**")
                         st.caption(f"as {actor.get('character', 'N/A')}")
-            
             if full_details.get('trailer_key'):
                 st.markdown("### 🎥 Trailer")
                 st.video(f"https://www.youtube.com/watch?v={full_details.get('trailer_key')}")
-            
             with st.expander("📊 Additional Information"):
                 if full_details.get('release_date'):
                     st.write(f"**Release Date:** {full_details.get('release_date')}")
@@ -817,260 +986,145 @@ elif selected_movie_title:
                     st.markdown(f"**[View on IMDB](https://www.imdb.com/title/{full_details.get('imdb_id')})**")
                 if full_details.get('homepage'):
                     st.markdown(f"**[Official Website]({full_details.get('homepage')})**")
-    else:
-        st.error("❌ Could not load movie details. Please try again.")
-        if st.button("← Back to Recommendations", key="back_button_3"):
-            st.query_params.clear()
-            st.rerun()
+
 else:
     # Main recommendation page
     st.markdown('<div id="top"></div>', unsafe_allow_html=True)
+
+    # ========================================
+    # PART 1: DYNAMIC HOMEPAGE (NEW - ADD THIS)
+    # ========================================
     
-    # Show title only on "Find your next movie" page
-    if current_view == "recommendations":
-        st.title("🎬 AI-Powered Movie Recommendation System")
+    st.title('🎬 FlixVerse Homepage')
+
     
-    # Search input with button on the right (aligned)
-    submitted_search = False
-    st.markdown("<div id=\"movie-search\">", unsafe_allow_html=True)
-    if current_view == "recommendations":
-        st.markdown("Enter a movie name (e.g., Inception, Avatar, Titanic):")
-    else:
-        st.markdown("Enter a movie name :")
-    with st.form("movie_search_form"):
-        left_col, right_col = st.columns([12, 2])
-        with left_col:
-            movie_name = st.text_input(
-                "movie_input",
-                placeholder="Type a movie title...",
-                label_visibility="collapsed",
-            )
-        with right_col:
-            submitted_search = st.form_submit_button("Search", use_container_width=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    if submitted_search and movie_name:
-            # Search for movies matching the search term
-            search_term = movie_name.lower().strip()
-            
-            def extract_year_from_title(title):
-                """Extract year from title like 'Movie Name (2005)'"""
-                import re
-                match = re.search(r'\((\d{4})\)', str(title))
-                return int(match.group(1)) if match else 0
-            
-            # First try exact match (case-insensitive)
-            exact_match = movies[movies['title'].astype(str).str.lower() == search_term]
-            
-            # If no exact match, try title starts with search term
-            if exact_match.empty:
-                exact_match = movies[movies['title'].astype(str).str.lower().str.startswith(search_term)]
-            
-            # If still no match, try contains search term
-            if exact_match.empty:
-                exact_match = movies[movies['title'].astype(str).str.lower().str.contains(search_term, na=False)]
-            
-            if exact_match.empty:
-                st.error("❌ Movie not found. Try another title.")
-            else:
-                # Sort by year descending to get the latest movie first
-                exact_match = exact_match.copy()
-                exact_match['extracted_year'] = exact_match['title'].apply(extract_year_from_title)
-                exact_match = exact_match.sort_values('extracted_year', ascending=False)
-                
-                # Get the latest matching movie title
-                searched_movie_title = exact_match.iloc[0]['title']
-                
-                # Only get recommendations if we're on the "Find your next movie" page
-                show_recommendations = (current_view == "recommendations")
-                
-                if show_recommendations:
-                    # Get recommendations based on the searched movie
-                    recs = recommend(searched_movie_title, movies, sim_matrix)
-                    
-                    # Remove the searched movie from recommendations to avoid duplication
-                    if not recs.empty:
-                        recs = recs[recs['title'] != searched_movie_title]
-                    
-                    # Display the searched movie first
-                    st.subheader(f"You searched for: {searched_movie_title.split('(')[0].strip()}")
-                    
-                    # Display searched movie card
-                    searched_row = exact_match.iloc[0]
-                    cols_searched = st.columns(5)
-                    with cols_searched[0]:
-                        details = get_cached_movie_details(searched_movie_title)
-                        poster = details['poster'] or "https://via.placeholder.com/200x300?text=No+Poster"
-                        year = details['year'] or "N/A"
-                        rating = details['rating'] or "N/A"
-                        title_clean = searched_movie_title.split('(')[0].strip()
-                        genres = [g.strip() for g in str(searched_row.get('genres','')).split('|') if g.strip()]
-
-                        genre_rows_html = "<div class='genre-stack'>"
-                        for i in range(0, len(genres), 2):
-                            chunk = genres[i:i+2]
-                            row_html = "<div class='genre-row'>"
-                            for g in chunk:
-                                color = GENRE_COLORS.get(g, "#555")
-                                row_html += (
-                                    f"<span class='genre-pill' style='border-color:{color}; color:{color};'>"
-                                    f"{g}</span>"
-                                )
-                            row_html += "</div>"
-                            genre_rows_html += row_html
-                        genre_rows_html += "</div>"
-
-                        encoded = urllib.parse.quote(searched_movie_title)
-                        card_html = (
-                            "<div class='movie-card'>"
-                            f"<img src='{poster}' alt='poster'/>"
-                            f"<div class='poster-title'>{title_clean} ({year})</div>"
-                            f"<div class='poster-meta'>⭐ {rating}</div>"
-                            f"{genre_rows_html}"
-                            "<div class='card-spacer'></div>"
-                            f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
-                            "</div>"
-                        )
-                        st.markdown(card_html, unsafe_allow_html=True)
-                    
-                    # Display recommendations
-                    if not recs.empty:
-                        st.subheader("Recommended Movies Based on Your Search:")
-                        
-                        num_cols = 5
-                        cols = st.columns(num_cols)
-                        
-                        for idx, (_, row) in enumerate(recs.iterrows()):
-                            col_idx = idx % num_cols
-                            with cols[col_idx]:
-                                details = get_cached_movie_details(row['title'])
-                                poster = details['poster'] or "https://via.placeholder.com/200x300?text=No+Poster"
-                                year = details['year'] or "N/A"
-                                rating = details['rating'] or "N/A"
-                                original_title = row['title']
-                                title_clean = original_title.split('(')[0].strip()
-                                genres = [g.strip() for g in str(row.get('genres','')).split('|') if g.strip()]
-
-                                genre_rows_html = "<div class='genre-stack'>"
-                                for i in range(0, len(genres), 2):
-                                    chunk = genres[i:i+2]
-                                    row_html = "<div class='genre-row'>"
-                                    for g in chunk:
-                                        color = GENRE_COLORS.get(g, "#555")
-                                        row_html += (
-                                            f"<span class='genre-pill' style='border-color:{color}; color:{color};'>"
-                                            f"{g}</span>"
-                                        )
-                                    row_html += "</div>"
-                                    genre_rows_html += row_html
-                                genre_rows_html += "</div>"
-
-                                encoded = urllib.parse.quote(original_title)
-                                card_html = (
-                                    "<div class='movie-card'>"
-                                    f"<img src='{poster}' alt='poster'/>"
-                                    f"<div class='poster-title'>{title_clean} ({year})</div>"
-                                    f"<div class='poster-meta'>⭐ {rating}</div>"
-                                    f"{genre_rows_html}"
-                                    "<div class='card-spacer'></div>"
-                                    f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
-                                    "</div>"
-                                )
-                                st.markdown(card_html, unsafe_allow_html=True)
-                    else:
-                        st.info("No similar movies found for this selection.")
-                else:
-                    # On home page, show all matching movies (latest first)
-                    st.subheader("Search Results")
-
-                    results = exact_match.head(50)
-                    num_cols = 5
-                    cols = st.columns(num_cols)
-
-                    for idx, (_, searched_row) in enumerate(results.iterrows()):
-                        col_idx = idx % num_cols
-                        with cols[col_idx]:
-                            details = get_cached_movie_details(searched_row['title'])
-                            poster = details['poster'] or "https://via.placeholder.com/200x300?text=No+Poster"
-                            year = details['year'] or "N/A"
-                            rating = details['rating'] or "N/A"
-                            original_title = searched_row['title']
-                            title_clean = original_title.split('(')[0].strip()
-                            genres = [g.strip() for g in str(searched_row.get('genres','')).split('|') if g.strip()]
-
-                            genre_rows_html = "<div class='genre-stack'>"
-                            for i in range(0, len(genres), 2):
-                                chunk = genres[i:i+2]
-                                row_html = "<div class='genre-row'>"
-                                for g in chunk:
-                                    color = GENRE_COLORS.get(g, "#555")
-                                    row_html += (
-                                        f"<span class='genre-pill' style='border-color:{color}; color:{color};'>"
-                                        f"{g}</span>"
-                                    )
-                                row_html += "</div>"
-                                genre_rows_html += row_html
-                            genre_rows_html += "</div>"
-
-                            encoded = urllib.parse.quote(original_title)
-                            card_html = (
-                                "<div class='movie-card'>"
-                                f"<img src='{poster}' alt='poster'/>"
-                                f"<div class='poster-title'>{title_clean} ({year})</div>"
-                                f"<div class='poster-meta'>⭐ {rating}</div>"
-                                f"{genre_rows_html}"
-                                "<div class='card-spacer'></div>"
-                                f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
-                                "</div>"
-                            )
-                            st.markdown(card_html, unsafe_allow_html=True)
-
-    else:
-        # Show all available movies
-        st.subheader("All Movies")
-
-        # Create consistent grid layout - 5 columns
+    # 2. TOP RATED MOVIES
+    st.subheader("⭐ Top Rated Movies")
+    
+    rating_col = None
+    if 'avg_rating' in movies.columns:
+        rating_col = 'avg_rating'
+    elif 'rating' in movies.columns:
+        rating_col = 'rating'
+    elif 'vote_average' in movies.columns:
+        rating_col = 'vote_average'
+    
+    if rating_col:
+        top_movies = movies.copy()
+        top_movies['rating_num'] = pd.to_numeric(top_movies[rating_col], errors='coerce').fillna(0)
+        top_movies = top_movies[top_movies['rating_num'] > 0]
+        top_movies = top_movies.sort_values('rating_num', ascending=False).head(10)
+        
         num_cols = 5
         cols = st.columns(num_cols)
-
-        for idx, (_, row) in enumerate(movies.iterrows()):
+        for idx, (_, row) in enumerate(top_movies.iterrows()):
             col_idx = idx % num_cols
             with cols[col_idx]:
-                title_val = str(row.get('title', 'Unknown'))
-                details = get_cached_movie_details(title_val)
-                poster = (details.get('poster') if details else None) or "https://via.placeholder.com/200x300?text=No+Poster"
-                year_val = (details.get('year') if details else None) or row.get('year', 'N/A')
-                rating_display = (details.get('rating') if details else None) or row.get('rating') or row.get('vote_average', 'N/A')
+                try:
+                    details = get_cached_movie_details(row['title'])
+                    poster = details['poster'] or "https://via.placeholder.com/200x300?text=No+Poster"
+                    year = details['year'] or "N/A"
+                    rating = details['rating'] or "N/A"
+                    title_clean = row['title'].split('(')[0].strip()
+                    
+                    encoded = urllib.parse.quote(row['title'])
+                    card_html = (
+                        "<div class='movie-card'>"
+                        f"<img src='{poster}' alt='poster'/>"
+                        f"<div class='poster-title'>{title_clean} ({year})</div>"
+                        f"<div class='poster-meta'>⭐ {rating}</div>"
+                        "<div class='card-spacer'></div>"
+                        f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
+                        "</div>"
+                    )
+                    st.markdown(card_html, unsafe_allow_html=True)
+                except:
+                    pass
 
-                title_clean = title_val.split('(')[0].strip()
-                genres = []
-                if isinstance(row.get('genres'), str):
-                    genres = [g.strip() for g in row['genres'].split('|') if g.strip()]
+    st.markdown("---")  # Visual separator
+    
+# ========================================
+# PART 2: GLOBAL SEARCH (Hide on "Find Your Next Movie" page)
+# ========================================
 
-                genre_rows_html = "<div class='genre-stack'>"
-                for i in range(0, len(genres), 2):
-                    chunk = genres[i:i+2]
-                    row_html = "<div class='genre-row'>"
-                    for g in chunk:
-                        color = GENRE_COLORS.get(g, "#555")
-                        row_html += (
-                            f"<span class='genre-pill' style='border-color:{color}; color:{color};'>"
-                            f"{g}</span>"
-                        )
-                    row_html += "</div>"
-                    genre_rows_html += row_html
-                genre_rows_html += "</div>"
+# Determine current view
+current_view = query_params.get("view")
+if isinstance(current_view, list):
+    current_view = current_view[0] if current_view else None
 
-                encoded = urllib.parse.quote(title_val)
-                card_html = (
-                    "<div class='movie-card'>"
-                    f"<img src='{poster}' alt='poster'/>"
-                    f"<div class='poster-title'>{title_clean} ({year_val})</div>"
-                    f"<div class='poster-meta'>⭐ {rating_display}</div>"
-                    f"{genre_rows_html}"
-                    "<div class='card-spacer'></div>"
-                    f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
-                    "</div>"
-                )
+# Only show global search if not on recommendations page
+import uuid  # ✅ add this at the top of your file if not already imported
 
-                st.markdown(card_html, unsafe_allow_html=True)
+if current_view != "recommendations":
+
+    st.markdown("<div style='margin-top:80px;'></div>", unsafe_allow_html=True)  # spacing below navbar
+    st.markdown("<hr style='opacity:0.2;'>", unsafe_allow_html=True)
+
+    # Define default variables (prevents NameError)
+    global_search_submit = False
+    global_movie_query = ""
+
+    # ✅ Generate a random unique key each time
+    form_key = f"global_search_form_{current_view or 'home'}_{uuid.uuid4().hex}"
+
+    st.markdown("<div class='global-search'>", unsafe_allow_html=True)
+    with st.form(form_key):
+        c1, c2 = st.columns([12, 2])
+        with c1:
+            global_movie_query = st.text_input(
+                f"movie_input_global_{current_view or 'home'}_{uuid.uuid4().hex}",
+                placeholder="Search any movie...",
+                label_visibility="collapsed",
+            )
+        with c2:
+            global_search_submit = st.form_submit_button("Search", use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # Ensure search history exists
+    if 'search_history' not in st.session_state:
+        st.session_state['search_history'] = []
+
+    # Handle search logic
+    if global_search_submit and global_movie_query:
+        search_term = global_movie_query.lower().strip()  # ✅ correct variable
+
+        def extract_year_from_title(title):
+            import re
+            match = re.search(r'\((\d{4})\)', str(title))
+            return int(match.group(1)) if match else 0
+
+        # Match title in dataset
+        exact_match = movies[movies['title'].astype(str).str.lower() == search_term]
+        if exact_match.empty:
+            exact_match = movies[movies['title'].astype(str).str.lower().str.startswith(search_term)]
+        if exact_match.empty:
+            exact_match = movies[movies['title'].astype(str).str.lower().str.contains(search_term, na=False)]
+
+        if exact_match.empty:
+            st.error("❌ Movie not found. Try another title.")
+        else:
+            # Sort to get the latest
+            exact_match = exact_match.copy()
+            exact_match['extracted_year'] = exact_match['title'].apply(extract_year_from_title)
+            exact_match = exact_match.sort_values('extracted_year', ascending=False)
+            searched_movie_title = exact_match.iloc[0]['title']
+
+            # ✅ Safely add to search history
+            if 'search_history' not in st.session_state:
+                st.session_state['search_history'] = []
+
+            if searched_movie_title not in st.session_state['search_history']:
+                st.session_state['search_history'].append(searched_movie_title)
+                st.session_state['search_history'] = st.session_state['search_history'][-5:]
+
+            # ✅ Persist search and rerun safely (modern Streamlit)
+            st.session_state["trigger_refresh"] = True
+            st.query_params["movie"] = urllib.parse.quote(str(searched_movie_title), safe="")
+            st.rerun()
+
+
+# ✅ Define a default to prevent NameError anywhere else
+else:
+    searched_movie_title = None
+
+
