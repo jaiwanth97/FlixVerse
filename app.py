@@ -277,6 +277,12 @@ def render_advanced_search():
             return pd.Series([0.0]*len(s), index=s.index)
         return (s - s.min()) / (s.max() - s.min())
 
+    def extract_year_from_title(title):
+        """Extract year from title like 'Movie Name (2005)'"""
+        import re
+        match = re.search(r'\((\d{4})\)', str(title))
+        return int(match.group(1)) if match else None
+
     with st.form("adv_search_form"):
         c1, c2, c3 = st.columns([1,1,1])
         with c1:
@@ -284,8 +290,14 @@ def render_advanced_search():
             rating_min = st.slider("Min rating", 0.0, 10.0, 6.0, 0.1)
             language = st.text_input("Language (e.g., en, hi, fr)")
         with c2:
-            min_year = int(pd.to_numeric(movies.get('year', pd.Series([1990])), errors='coerce').fillna(1990).min())
-            max_year = int(pd.to_numeric(movies.get('year', pd.Series([2024])), errors='coerce').fillna(2024).max())
+            # Extract years from titles to get min/max
+            years = movies['title'].apply(extract_year_from_title).dropna()
+            if len(years) > 0:
+                min_year = int(years.min())
+                max_year = int(years.max())
+            else:
+                min_year = 1990
+                max_year = 2024
             year_range = st.slider("Release year range", min_year, max_year, (max(min_year, max_year-20), max_year))
             actor = st.text_input("Actor contains")
         with c3:
@@ -304,8 +316,11 @@ def render_advanced_search():
         mask = df['genres'].fillna('').apply(lambda x: all(g in x for g in selected_genres))
         df = df[mask]
 
-    if 'year' in df.columns:
-        df = df[pd.to_numeric(df['year'], errors='coerce').fillna(0).between(year_range[0], year_range[1])]
+    # Extract year from title and filter by year range
+    df['extracted_year'] = df['title'].apply(extract_year_from_title)
+    df = df[df['extracted_year'].notna()]  # Remove movies without year
+    df = df[(df['extracted_year'] >= year_range[0]) & (df['extracted_year'] <= year_range[1])]
+    df = df.drop('extracted_year', axis=1)  # Remove temporary column
 
     rating_col = 'rating' if 'rating' in df.columns else ('vote_average' if 'vote_average' in df.columns else None)
     if rating_col:
@@ -315,16 +330,7 @@ def render_advanced_search():
     if language and lang_col:
         df = df[df[lang_col].astype(str).str.contains(language.strip(), case=False, na=False)]
 
-    if 'cast' in df.columns and st.session_state.get('dummy', True):
-        pass
-    if 'director' in df.columns and st.session_state.get('dummy', True):
-        pass
-    if 'cast' in df.columns and 'actor' in locals() and actor:
-        df = df[df['cast'].astype(str).str.contains(actor.strip(), case=False, na=False)]
-    if 'director' in df.columns and 'director' in locals() and director:
-        df = df[df['director'].astype(str).str.contains(director.strip(), case=False, na=False)]
-
-    if 'keywords' in locals() and keywords:
+    if keywords:
         kw = keywords.strip()
         cols = [c for c in ['title','overview','tagline','genres'] if c in df.columns]
         if cols:
@@ -333,6 +339,62 @@ def render_advanced_search():
                 kw_mask = kw_mask | df[c].astype(str).str.contains(kw, case=False, na=False)
             df = df[kw_mask]
 
+    # Filter by director and actor - need to fetch from TMDB since dataset doesn't have these
+    # Do this BEFORE scoring to avoid unnecessary API calls
+    if director or actor:
+        # Filter movies by fetching their details from TMDB
+        filtered_indices = []
+        progress_bar = None
+        status_text = None
+        
+        total_movies = len(df)
+        if total_movies > 10:  # Only show progress if many movies
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+        
+        for enum_idx, (original_idx, row) in enumerate(df.iterrows()):
+            if progress_bar and enum_idx % 5 == 0:
+                progress_bar.progress((enum_idx + 1) / total_movies)
+                status_text.text(f"Checking movie details... {enum_idx + 1}/{total_movies}")
+            
+            title_val = str(row.get('title', 'Unknown'))
+            full_details = get_cached_full_movie_details(title_val)
+            
+            # Check director match
+            director_match = True
+            if director:
+                director_match = False
+                if full_details and full_details.get('director'):
+                    movie_director = full_details.get('director', '').lower()
+                    if director.strip().lower() in movie_director:
+                        director_match = True
+            
+            # Check actor match
+            actor_match = True
+            if actor:
+                actor_match = False
+                if full_details and full_details.get('cast'):
+                    cast_names = [c.get('name', '').lower() for c in full_details.get('cast', [])]
+                    actor_query = actor.strip().lower()
+                    for cast_name in cast_names:
+                        if actor_query in cast_name:
+                            actor_match = True
+                            break
+            
+            # If both matches pass, include this movie
+            if director_match and actor_match:
+                filtered_indices.append(original_idx)
+        
+        if progress_bar:
+            progress_bar.empty()
+            status_text.empty()
+        
+        # Filter dataframe to only include matching indices
+        if filtered_indices:
+            df = df.loc[filtered_indices]
+        else:
+            df = df.iloc[[]]  # Empty dataframe if no matches
+
     score = pd.Series(0.0, index=df.index)
     if 'similar_to' in locals() and similar_to:
         idx = find_movie_index_by_title(movies, similar_to)
@@ -340,12 +402,14 @@ def render_advanced_search():
             sim_vec = pd.Series(sim_matrix[idx], index=movies.index)
             score = score.add(normalize_series(sim_vec.reindex(df.index).fillna(0)) * 0.55, fill_value=0)
 
-    rcol2 = 'rating' if 'rating' in df.columns else ('vote_average' if 'vote_average' in df.columns else None)
+    rcol2 = 'rating' if 'rating' in df.columns else ('vote_average' if 'vote_average' in df.columns else ('avg_rating' if 'avg_rating' in df.columns else None))
     if rcol2:
         score = score.add(normalize_series(pd.to_numeric(df[rcol2], errors='coerce').fillna(0)) * 0.30, fill_value=0)
 
-    if 'year' in df.columns:
-        score = score.add(normalize_series(pd.to_numeric(df['year'], errors='coerce').fillna(0)) * 0.15, fill_value=0)
+    # Use extracted year for scoring
+    df['extracted_year'] = df['title'].apply(extract_year_from_title)
+    score = score.add(normalize_series(pd.to_numeric(df['extracted_year'], errors='coerce').fillna(0)) * 0.15, fill_value=0)
+    df = df.drop('extracted_year', axis=1)  # Remove temporary column
 
     df = df.loc[score.sort_values(ascending=False).head(10).index]
 
@@ -515,63 +579,120 @@ def render_top_rated():
     st.title("⭐ Top Rated Movies")
     st.markdown("Discover the highest-rated movies in our collection!")
     
-    # Determine rating column
-    rating_col = 'rating' if 'rating' in movies.columns else ('vote_average' if 'vote_average' in movies.columns else None)
+    # Determine rating column - check for avg_rating first (from train_model), then fallback to rating/vote_average
+    rating_col = None
+    if 'avg_rating' in movies.columns:
+        rating_col = 'avg_rating'
+    elif 'rating' in movies.columns:
+        rating_col = 'rating'
+    elif 'vote_average' in movies.columns:
+        rating_col = 'vote_average'
     
     if rating_col:
         # Get top rated movies (sorted by rating, then by vote count if available)
         top_movies = movies.copy()
         top_movies['rating_num'] = pd.to_numeric(top_movies[rating_col], errors='coerce').fillna(0)
         
+        # Filter out movies with 0 rating (no ratings available)
+        top_movies = top_movies[top_movies['rating_num'] > 0]
+        
         # Sort by rating (descending) and limit to top 50
         top_movies = top_movies.sort_values('rating_num', ascending=False).head(50)
         
+        if top_movies.empty:
+            st.warning("⚠️ No rated movies found in the dataset.")
+            return
+        
         st.subheader(f"Top {len(top_movies)} Highest-Rated Movies")
+        
+        # Show progress indicator while fetching movie details
+        progress_bar = st.progress(0)
+        status_text = st.empty()
         
         # Create consistent grid layout - 5 columns
         num_cols = 5
         cols = st.columns(num_cols)
         
+        total_movies = len(top_movies)
+        
         for idx, (_, row) in enumerate(top_movies.iterrows()):
             col_idx = idx % num_cols
             with cols[col_idx]:
-                title_val = str(row.get('title', 'Unknown'))
-                details = get_cached_movie_details(title_val)
-                poster = (details.get('poster') if details else None) or "https://via.placeholder.com/200x300?text=No+Poster"
-                year_val = (details.get('year') if details else None) or row.get('year', 'N/A')
-                rating_display = (details.get('rating') if details else None) or row.get(rating_col, 'N/A')
+                try:
+                    # Update progress (only every 5 movies to reduce overhead)
+                    if idx % 5 == 0 or idx == total_movies - 1:
+                        progress = (idx + 1) / total_movies
+                        progress_bar.progress(progress)
+                        status_text.text(f"Loading movie details... {idx + 1}/{total_movies}")
+                    
+                    title_val = str(row.get('title', 'Unknown'))
+                    details = get_cached_movie_details(title_val)
+                    poster = (details.get('poster') if details else None) or "https://via.placeholder.com/200x300?text=No+Poster"
+                    year_val = (details.get('year') if details else None) or row.get('year', 'N/A')
+                    
+                    # Use dataset rating if available, otherwise use TMDB rating
+                    rating_display = row.get(rating_col, 'N/A')
+                    if rating_display == 'N/A' or pd.isna(rating_display):
+                        rating_display = details.get('rating') if details else 'N/A'
+                    
+                    # Format rating display
+                    if isinstance(rating_display, (int, float)):
+                        rating_display = f"{rating_display:.1f}"
 
-                title_clean = title_val.split('(')[0].strip()
-                genres = []
-                if isinstance(row.get('genres'), str):
-                    genres = [g.strip() for g in row['genres'].split('|') if g.strip()]
+                    title_clean = title_val.split('(')[0].strip()
+                    genres = []
+                    if isinstance(row.get('genres'), str):
+                        genres = [g.strip() for g in row['genres'].split('|') if g.strip()]
 
-                genre_rows_html = "<div class='genre-stack'>"
-                for i in range(0, len(genres), 2):
-                    chunk = genres[i:i+2]
-                    row_html = "<div class='genre-row'>"
-                    for g in chunk:
-                        color = GENRE_COLORS.get(g, "#555")
-                        row_html += (
-                            f"<span class='genre-pill' style='border-color:{color}; color:{color};'>"
-                            f"{g}</span>"
-                        )
-                    row_html += "</div>"
-                    genre_rows_html += row_html
-                genre_rows_html += "</div>"
+                    genre_rows_html = "<div class='genre-stack'>"
+                    for i in range(0, len(genres), 2):
+                        chunk = genres[i:i+2]
+                        row_html = "<div class='genre-row'>"
+                        for g in chunk:
+                            color = GENRE_COLORS.get(g, "#555")
+                            row_html += (
+                                f"<span class='genre-pill' style='border-color:{color}; color:{color};'>"
+                                f"{g}</span>"
+                            )
+                        row_html += "</div>"
+                        genre_rows_html += row_html
+                    genre_rows_html += "</div>"
 
-                encoded = urllib.parse.quote(title_val)
-                card_html = (
-                    "<div class='movie-card'>"
-                    f"<img src='{poster}' alt='poster'/>"
-                    f"<div class='poster-title'>{title_clean} ({year_val})</div>"
-                    f"<div class='poster-meta'>⭐ {rating_display}</div>"
-                    f"{genre_rows_html}"
-                    "<div class='card-spacer'></div>"
-                    f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
-                    "</div>"
-                )
-                st.markdown(card_html, unsafe_allow_html=True)
+                    encoded = urllib.parse.quote(title_val)
+                    card_html = (
+                        "<div class='movie-card'>"
+                        f"<img src='{poster}' alt='poster'/>"
+                        f"<div class='poster-title'>{title_clean} ({year_val})</div>"
+                        f"<div class='poster-meta'>⭐ {rating_display}</div>"
+                        f"{genre_rows_html}"
+                        "<div class='card-spacer'></div>"
+                        f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
+                        "</div>"
+                    )
+                    st.markdown(card_html, unsafe_allow_html=True)
+                except Exception as e:
+                    # Handle errors gracefully - show movie card without details
+                    title_val = str(row.get('title', 'Unknown'))
+                    title_clean = title_val.split('(')[0].strip()
+                    rating_display = row.get(rating_col, 'N/A')
+                    if isinstance(rating_display, (int, float)):
+                        rating_display = f"{rating_display:.1f}"
+                    
+                    encoded = urllib.parse.quote(title_val)
+                    card_html = (
+                        "<div class='movie-card'>"
+                        f"<img src='https://via.placeholder.com/200x300?text=No+Poster' alt='poster'/>"
+                        f"<div class='poster-title'>{title_clean}</div>"
+                        f"<div class='poster-meta'>⭐ {rating_display}</div>"
+                        "<div class='card-spacer'></div>"
+                        f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
+                        "</div>"
+                    )
+                    st.markdown(card_html, unsafe_allow_html=True)
+        
+        # Clear progress indicator
+        progress_bar.empty()
+        status_text.empty()
     else:
         st.error("❌ Rating information not available in the dataset.")
 
@@ -586,7 +707,7 @@ elif selected_movie_title:
     st.title(f"🎬 {selected_movie_title}")
     
     # Back button
-    if st.button("← Back to Recommendations"):
+    if st.button("← Back to Recommendations", key="back_button_1"):
         st.query_params.clear()
         st.rerun()
     
@@ -600,7 +721,7 @@ elif selected_movie_title:
         st.write("- The movie is not available in TMDB")
         st.write("- The title doesn't match any results")
         st.write("- There was an error fetching the data")
-        if st.button("← Back to Recommendations"):
+        if st.button("← Back to Recommendations", key="back_button_2"):
             st.query_params.clear()
             st.rerun()
     elif full_details:
@@ -698,7 +819,7 @@ elif selected_movie_title:
                     st.markdown(f"**[Official Website]({full_details.get('homepage')})**")
     else:
         st.error("❌ Could not load movie details. Please try again.")
-        if st.button("← Back to Recommendations"):
+        if st.button("← Back to Recommendations", key="back_button_3"):
             st.query_params.clear()
             st.rerun()
 else:
@@ -729,101 +850,62 @@ else:
     st.markdown("</div>", unsafe_allow_html=True)
 
     if submitted_search and movie_name:
-        # Search for movies matching the search term
-        search_term = movie_name.lower().strip()
-        
-        # First try exact match (case-insensitive)
-        exact_match = movies[movies['title'].astype(str).str.lower() == search_term]
-        
-        # If no exact match, try title starts with search term
-        if exact_match.empty:
-            exact_match = movies[movies['title'].astype(str).str.lower().str.startswith(search_term)]
-        
-        # If still no match, try contains search term
-        if exact_match.empty:
-            exact_match = movies[movies['title'].astype(str).str.lower().str.contains(search_term, na=False)]
-        
-        if exact_match.empty:
-            st.error("❌ Movie not found. Try another title.")
-        else:
-            # Get the first matching movie title
-            searched_movie_title = exact_match.iloc[0]['title']
+            # Search for movies matching the search term
+            search_term = movie_name.lower().strip()
             
-            # Only get recommendations if we're on the "Find your next movie" page
-            show_recommendations = (current_view == "recommendations")
-            recs = pd.DataFrame()  # Initialize empty dataframe
+            def extract_year_from_title(title):
+                """Extract year from title like 'Movie Name (2005)'"""
+                import re
+                match = re.search(r'\((\d{4})\)', str(title))
+                return int(match.group(1)) if match else 0
             
-            if show_recommendations:
-                # Get recommendations based on the searched movie
-                recs = recommend(searched_movie_title, movies, sim_matrix)
-                
-                # Remove the searched movie from recommendations to avoid duplication
-                if not recs.empty:
-                    recs = recs[recs['title'] != searched_movie_title]
+            # First try exact match (case-insensitive)
+            exact_match = movies[movies['title'].astype(str).str.lower() == search_term]
+            
+            # If no exact match, try title starts with search term
+            if exact_match.empty:
+                exact_match = movies[movies['title'].astype(str).str.lower().str.startswith(search_term)]
+            
+            # If still no match, try contains search term
+            if exact_match.empty:
+                exact_match = movies[movies['title'].astype(str).str.lower().str.contains(search_term, na=False)]
+            
+            if exact_match.empty:
+                st.error("❌ Movie not found. Try another title.")
             else:
-                # On home page, show the searched movie
-                st.subheader(f"Movie: '{searched_movie_title.split('(')[0].strip()}'")
+                # Sort by year descending to get the latest movie first
+                exact_match = exact_match.copy()
+                exact_match['extracted_year'] = exact_match['title'].apply(extract_year_from_title)
+                exact_match = exact_match.sort_values('extracted_year', ascending=False)
                 
-                # Display the searched movie
-                searched_row = exact_match.iloc[0]
-                details = get_cached_movie_details(searched_row['title'])
-                poster = details['poster'] or "https://via.placeholder.com/200x300?text=No+Poster"
-                year = details['year'] or "N/A"
-                rating = details['rating'] or "N/A"
-                original_title = searched_row['title']
-                title_clean = original_title.split('(')[0].strip()
-                genres = [g.strip() for g in searched_row['genres'].split('|') if g.strip()]
-
-                genre_rows_html = "<div class='genre-stack'>"
-                for i in range(0, len(genres), 2):
-                    chunk = genres[i:i+2]
-                    row_html = "<div class='genre-row'>"
-                    for g in chunk:
-                        color = GENRE_COLORS.get(g, "#555")
-                        row_html += (
-                            f"<span class='genre-pill' style='border-color:{color}; color:{color};'>"
-                            f"{g}</span>"
-                        )
-                    row_html += "</div>"
-                    genre_rows_html += row_html
-                genre_rows_html += "</div>"
-
-                encoded = urllib.parse.quote(original_title)
-                card_html = (
-                    "<div class='movie-card'>"
-                    f"<img src='{poster}' alt='poster'/>"
-                    f"<div class='poster-title'>{title_clean} ({year})</div>"
-                    f"<div class='poster-meta'>⭐ {rating}</div>"
-                    f"{genre_rows_html}"
-                    "<div class='card-spacer'></div>"
-                    f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
-                    "</div>"
-                )
-                st.markdown(card_html, unsafe_allow_html=True)
-            
-            # Display recommendations only on "Find your next movie" page
-            if show_recommendations and not recs.empty:
-                st.subheader("Recommended Movies:")
+                # Get the latest matching movie title
+                searched_movie_title = exact_match.iloc[0]['title']
                 
-                # Create consistent grid layout - 5 columns with equal spacing
-                num_cols = 5
-                cols = st.columns(num_cols)
+                # Only get recommendations if we're on the "Find your next movie" page
+                show_recommendations = (current_view == "recommendations")
                 
-                for idx, (_, row) in enumerate(recs.iterrows()):
-                    col_idx = idx % num_cols
-                    with cols[col_idx]:
-                        # Use cached details to avoid unnecessary fetching - no delay needed since cached
-                        details = get_cached_movie_details(row['title'])
+                if show_recommendations:
+                    # Get recommendations based on the searched movie
+                    recs = recommend(searched_movie_title, movies, sim_matrix)
+                    
+                    # Remove the searched movie from recommendations to avoid duplication
+                    if not recs.empty:
+                        recs = recs[recs['title'] != searched_movie_title]
+                    
+                    # Display the searched movie first
+                    st.subheader(f"You searched for: {searched_movie_title.split('(')[0].strip()}")
+                    
+                    # Display searched movie card
+                    searched_row = exact_match.iloc[0]
+                    cols_searched = st.columns(5)
+                    with cols_searched[0]:
+                        details = get_cached_movie_details(searched_movie_title)
                         poster = details['poster'] or "https://via.placeholder.com/200x300?text=No+Poster"
                         year = details['year'] or "N/A"
                         rating = details['rating'] or "N/A"
+                        title_clean = searched_movie_title.split('(')[0].strip()
+                        genres = [g.strip() for g in str(searched_row.get('genres','')).split('|') if g.strip()]
 
-                        # Use original title from dataset (includes year for better matching)
-                        original_title = row['title']
-                        title_clean = original_title.split('(')[0].strip()
-                        genres = [g.strip() for g in row['genres'].split('|') if g.strip()]
-
-                        # Build genres into rows of max 2 per line (outlined, subtle pills)
                         genre_rows_html = "<div class='genre-stack'>"
                         for i in range(0, len(genres), 2):
                             chunk = genres[i:i+2]
@@ -838,8 +920,7 @@ else:
                             genre_rows_html += row_html
                         genre_rows_html += "</div>"
 
-                        # Display card with built-in button; use query string navigation for details
-                        encoded = urllib.parse.quote(original_title)
+                        encoded = urllib.parse.quote(searched_movie_title)
                         card_html = (
                             "<div class='movie-card'>"
                             f"<img src='{poster}' alt='poster'/>"
@@ -850,8 +931,99 @@ else:
                             f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
                             "</div>"
                         )
-
                         st.markdown(card_html, unsafe_allow_html=True)
+                    
+                    # Display recommendations
+                    if not recs.empty:
+                        st.subheader("Recommended Movies Based on Your Search:")
+                        
+                        num_cols = 5
+                        cols = st.columns(num_cols)
+                        
+                        for idx, (_, row) in enumerate(recs.iterrows()):
+                            col_idx = idx % num_cols
+                            with cols[col_idx]:
+                                details = get_cached_movie_details(row['title'])
+                                poster = details['poster'] or "https://via.placeholder.com/200x300?text=No+Poster"
+                                year = details['year'] or "N/A"
+                                rating = details['rating'] or "N/A"
+                                original_title = row['title']
+                                title_clean = original_title.split('(')[0].strip()
+                                genres = [g.strip() for g in str(row.get('genres','')).split('|') if g.strip()]
+
+                                genre_rows_html = "<div class='genre-stack'>"
+                                for i in range(0, len(genres), 2):
+                                    chunk = genres[i:i+2]
+                                    row_html = "<div class='genre-row'>"
+                                    for g in chunk:
+                                        color = GENRE_COLORS.get(g, "#555")
+                                        row_html += (
+                                            f"<span class='genre-pill' style='border-color:{color}; color:{color};'>"
+                                            f"{g}</span>"
+                                        )
+                                    row_html += "</div>"
+                                    genre_rows_html += row_html
+                                genre_rows_html += "</div>"
+
+                                encoded = urllib.parse.quote(original_title)
+                                card_html = (
+                                    "<div class='movie-card'>"
+                                    f"<img src='{poster}' alt='poster'/>"
+                                    f"<div class='poster-title'>{title_clean} ({year})</div>"
+                                    f"<div class='poster-meta'>⭐ {rating}</div>"
+                                    f"{genre_rows_html}"
+                                    "<div class='card-spacer'></div>"
+                                    f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
+                                    "</div>"
+                                )
+                                st.markdown(card_html, unsafe_allow_html=True)
+                    else:
+                        st.info("No similar movies found for this selection.")
+                else:
+                    # On home page, show all matching movies (latest first)
+                    st.subheader("Search Results")
+
+                    results = exact_match.head(50)
+                    num_cols = 5
+                    cols = st.columns(num_cols)
+
+                    for idx, (_, searched_row) in enumerate(results.iterrows()):
+                        col_idx = idx % num_cols
+                        with cols[col_idx]:
+                            details = get_cached_movie_details(searched_row['title'])
+                            poster = details['poster'] or "https://via.placeholder.com/200x300?text=No+Poster"
+                            year = details['year'] or "N/A"
+                            rating = details['rating'] or "N/A"
+                            original_title = searched_row['title']
+                            title_clean = original_title.split('(')[0].strip()
+                            genres = [g.strip() for g in str(searched_row.get('genres','')).split('|') if g.strip()]
+
+                            genre_rows_html = "<div class='genre-stack'>"
+                            for i in range(0, len(genres), 2):
+                                chunk = genres[i:i+2]
+                                row_html = "<div class='genre-row'>"
+                                for g in chunk:
+                                    color = GENRE_COLORS.get(g, "#555")
+                                    row_html += (
+                                        f"<span class='genre-pill' style='border-color:{color}; color:{color};'>"
+                                        f"{g}</span>"
+                                    )
+                                row_html += "</div>"
+                                genre_rows_html += row_html
+                            genre_rows_html += "</div>"
+
+                            encoded = urllib.parse.quote(original_title)
+                            card_html = (
+                                "<div class='movie-card'>"
+                                f"<img src='{poster}' alt='poster'/>"
+                                f"<div class='poster-title'>{title_clean} ({year})</div>"
+                                f"<div class='poster-meta'>⭐ {rating}</div>"
+                                f"{genre_rows_html}"
+                                "<div class='card-spacer'></div>"
+                                f"<a class='btn-link' href='?movie={encoded}' target='_self'><div class='btn-primary'>View Details</div></a>"
+                                "</div>"
+                            )
+                            st.markdown(card_html, unsafe_allow_html=True)
 
     else:
         # Show all available movies
